@@ -5,7 +5,7 @@ import sqlite3
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import FSInputFile
-from pytubefix import Search
+from yt_dlp import YoutubeDL
 from aiohttp import web
 
 # --- TOKENLƏR ---
@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-# --- SERVER (Botun yatmaması üçün) ---
+# --- SERVER ---
 async def health_check(request):
     return web.Response(text="Bot is active!")
 
@@ -29,7 +29,7 @@ async def start_server():
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
 
-# --- VERİLƏNLƏR BAZASI ---
+# --- DB ---
 def init_db():
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
@@ -46,61 +46,63 @@ def add_user(user_id, username):
     except: pass
     finally: conn.close()
 
-# --- YÜKLƏMƏ HİSSƏSİ (PYTUBEFIX) ---
+# --- YÜKLƏMƏ HİSSƏSİ (İOS REJİMİ) ---
 @dp.message(F.text & ~F.text.startswith('/'))
 async def download_music(message: types.Message):
     query = message.text
-    msg = await message.answer(f"🔍 '{query}' axtarılır... (Yeni metod)")
+    msg = await message.answer(f"🔍 '{query}' axtarılır... (iOS Rejimi)")
+
+    # İOS (iPhone) kimi yükləmə parametrləri
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'noplaylist': True,
+        'outtmpl': '%(title)s.%(ext)s',
+        'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192'}],
+        'quiet': True,
+        'nocheckcertificate': True,
+        'geo_bypass': True,
+        # ÇOX VACİB: Müştəri növünü dəyişirik
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'web']
+            }
+        }
+    }
 
     try:
         loop = asyncio.get_event_loop()
-        # Yükləməni arxa planda edirik
-        filename, title = await loop.run_in_executor(None, lambda: real_download(query))
+        filename, title = await loop.run_in_executor(None, lambda: real_download(ydl_opts, query))
         
         if filename:
-            await msg.edit_text("📤 Yüklənir, göndərilir...")
-            # Telegram-a audio kimi göndəririk
+            await msg.edit_text("📤 Tapıldı! Yüklənir...")
             await message.answer_audio(FSInputFile(filename), caption=f"🎧 {title}\nBot: @Baku_musicc_bot")
             
-            # Faylı silirik
             if os.path.exists(filename):
                 os.remove(filename)
             await msg.delete()
         else:
-            await msg.edit_text("❌ Mahnı tapılmadı.")
+            await msg.edit_text("❌ Mahnı tapılmadı (YouTube blokladı).")
 
     except Exception as e:
-        await msg.edit_text(f"❌ Xəta baş verdi: {str(e)}")
+        await msg.edit_text(f"❌ Xəta: {str(e)}")
 
-def real_download(query):
-    try:
-        # Pytubefix ilə axtarış
-        s = Search(query)
-        if not s.videos:
-            return None, None
+def real_download(opts, query):
+    with YoutubeDL(opts) as ydl:
+        try:
+            info = ydl.extract_info(f"ytsearch1:{query}", download=True)
+            if 'entries' in info:
+                info = info['entries'][0]
             
-        yt = s.videos[0] # İlk nəticəni götürürük
-        title = yt.title
-        
-        # Audio axınını tapırıq (m4a formatı Telegram üçün uyğundur)
-        ys = yt.streams.get_audio_only()
-        
-        # Fayl adı yaradırıq
-        safe_title = "".join([c for c in title if c.isalnum() or c in (' ', '-', '_')]).strip()
-        filename = f"{safe_title}.m4a"
-        
-        # Yükləyirik
-        ys.download(filename=filename)
-        return filename, title
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return None, None
+            title = info.get('title', 'Mahnı')
+            filename = ydl.prepare_filename(info).replace('.webm', '.mp3').replace('.m4a', '.mp3')
+            return filename, title
+        except Exception as e:
+            return None, None
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     add_user(message.from_user.id, message.from_user.full_name)
-    await message.answer(f"Salam {message.from_user.first_name}! 👋\nBiz sistemi yenilədik. Mahnı adını yazın!")
+    await message.answer(f"Salam {message.from_user.first_name}! 👋\nMahnı adını yazın!")
 
 async def main():
     init_db()
