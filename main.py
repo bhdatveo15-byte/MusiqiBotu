@@ -8,7 +8,7 @@ from aiogram.types import FSInputFile
 from yt_dlp import YoutubeDL
 from aiohttp import web
 
-# --- BURANI DƏYİŞMƏYİN (Sizin tokenləriniz) ---
+# --- TOKENLƏRİNİZ ---
 API_TOKEN = '8593665005:AAF8_5IkhYudcJa3ysqzLjK7XcGCktTd-3M' 
 ADMIN_ID = 6254213843
 
@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-# --- SERVER HİSSƏSİ ---
+# --- SERVER ---
 async def health_check(request):
     return web.Response(text="Bot is active!")
 
@@ -46,25 +46,21 @@ def add_user(user_id, username):
     except: pass
     finally: conn.close()
 
-# --- MAHNINI YÜKLƏYƏN HİSSƏ ---
+# --- YÜKLƏMƏ HİSSƏSİ ---
 @dp.message(F.text & ~F.text.startswith('/'))
 async def download_music(message: types.Message):
-    name = message.from_user.username if message.from_user.username else message.from_user.first_name
-    add_user(message.from_user.id, name)
-    
     query = message.text
-    msg = await message.answer(f"🔍 '{query}' axtarılır... (Zəhmət olmasa gözləyin)")
-    
-    # YENİ PARAMETRLƏR (YouTube-u aldatmaq üçün)
+    msg = await message.answer(f"🔍 '{query}' axtarılır...")
+
+    # Yoxlamaq üçün hələlik kukisiz (cookies.txt sildim) və sadə Android kimi yoxlayaq
     ydl_opts = {
         'format': 'bestaudio/best',
         'noplaylist': True,
-        'cookiefile': 'cookies.txt',  # Kuki faylı yenə də qalsın
+        # 'cookiefile': 'cookies.txt',  <-- Bunu müvəqqəti söndürürəm, bəlkə problem Bakı kukisidir
         'outtmpl': '%(title)s.%(ext)s',
         'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192'}],
         'quiet': True,
         'nocheckcertificate': True,
-        # Bu hissə botu "Android Telefon" kimi göstərir:
         'extractor_args': {
             'youtube': {
                 'player_client': ['android', 'web']
@@ -74,17 +70,19 @@ async def download_music(message: types.Message):
 
     try:
         loop = asyncio.get_event_loop()
-        filename = await loop.run_in_executor(None, lambda: real_download(ydl_opts, query))
+        # İndi bizə həm fayl adı, həm də xəta mesajı qayıdacaq
+        filename, error_text = await loop.run_in_executor(None, lambda: real_download(ydl_opts, query))
         
         if filename:
             await message.answer_audio(FSInputFile(filename), caption=f"🎧 {filename[:-4]}\nBot: @Baku_musicc_bot")
             os.remove(filename) 
             await msg.delete()
         else:
-            await msg.edit_text("❌ Mahnı tapılmadı.")
+            # ƏSL XƏTANI BURADA GÖRƏCƏYİK
+            await msg.edit_text(f"❌ Xəta baş verdi:\n\n{error_text}")
+
     except Exception as e:
-        # Xəta mesajını sadələşdirək
-        await msg.edit_text(f"❌ Xəta baş verdi. Bir az sonra yenidən cəhd edin.\n(Server IP problemi)")
+        await msg.edit_text(f"❌ Sistem Xətası: {str(e)}")
 
 def real_download(opts, query):
     with YoutubeDL(opts) as ydl:
@@ -92,9 +90,10 @@ def real_download(opts, query):
             info = ydl.extract_info(f"ytsearch1:{query}", download=True)
             if 'entries' in info:
                 info = info['entries'][0]
-            return ydl.prepare_filename(info).replace('.webm', '.mp3').replace('.m4a', '.mp3')
+            filename = ydl.prepare_filename(info).replace('.webm', '.mp3').replace('.m4a', '.mp3')
+            return filename, None # Uğurlu (Xəta yoxdur)
         except Exception as e:
-            return None
+            return None, str(e) # Uğursuz (Xətanı qaytarır)
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
