@@ -52,18 +52,19 @@ async def download_music(message: types.Message):
     query = message.text
     msg = await message.answer(f"🔍 '{query}' axtarılır...")
 
-    # YENİ TƏNZİMLƏMƏ (Android Rejimi - Kukisiz)
+    # YENİ TAKTİKA: SMART TV
     ydl_opts = {
         'format': 'bestaudio/best',
         'noplaylist': True,
-        # 'cookiefile': 'cookies.txt',  <-- KUKİNİ SİLDİK
         'outtmpl': '%(title)s.%(ext)s',
         'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192'}],
         'quiet': True,
         'nocheckcertificate': True,
+        'geo_bypass': True,
+        # Bu hissə botu "Televizor" kimi göstərir:
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios'] # Bot özünü telefon kimi aparacaq
+                'player_client': ['tv', 'android', 'web']
             }
         }
     }
@@ -77,7 +78,7 @@ async def download_music(message: types.Message):
             os.remove(filename) 
             await msg.delete()
         else:
-            await msg.edit_text(f"❌ Xəta: YouTube yükləməyə icazə vermədi.\nSəbəb: {error_text}")
+            await msg.edit_text(f"❌ YouTube (TV rejimi) blokladı:\n{error_text}")
 
     except Exception as e:
         await msg.edit_text(f"❌ Sistem Xətası: {str(e)}")
