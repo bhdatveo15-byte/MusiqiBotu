@@ -10,7 +10,7 @@ from aiohttp import web
 
 # --- BURANI DƏYİŞİN ---
 API_TOKEN = '8593665005:AAF8_5IkhYudcJa3ysqzLjK7XcGCktTd-3M' 
-ADMIN_ID = 6254213843 Öz ID-nizi bura yazın
+ADMIN_ID = 6254213843 
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
