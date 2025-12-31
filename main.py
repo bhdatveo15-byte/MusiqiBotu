@@ -29,7 +29,7 @@ async def start_server():
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
 
-# --- VERİLƏNLƏR BAZASI ---
+# --- DB ---
 def init_db():
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
@@ -52,17 +52,20 @@ async def download_music(message: types.Message):
     query = message.text
     msg = await message.answer(f"🔍 '{query}' axtarılır...")
 
-    # YENİ TƏNZİMLƏMƏLƏR
+    # YENİ TƏNZİMLƏMƏ (Android Rejimi - Kukisiz)
     ydl_opts = {
         'format': 'bestaudio/best',
         'noplaylist': True,
-        'cookiefile': 'cookies.txt',  # <-- KUKİNİ GERİ QAYTARDIQ
+        # 'cookiefile': 'cookies.txt',  <-- KUKİNİ SİLDİK
         'outtmpl': '%(title)s.%(ext)s',
         'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192'}],
         'quiet': True,
         'nocheckcertificate': True,
-        # Brauzeri təqlid etmək üçün:
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios'] # Bot özünü telefon kimi aparacaq
+            }
+        }
     }
 
     try:
@@ -74,7 +77,7 @@ async def download_music(message: types.Message):
             os.remove(filename) 
             await msg.delete()
         else:
-            await msg.edit_text(f"❌ Xəta baş verdi (YouTube blokladı):\n{error_text}")
+            await msg.edit_text(f"❌ Xəta: YouTube yükləməyə icazə vermədi.\nSəbəb: {error_text}")
 
     except Exception as e:
         await msg.edit_text(f"❌ Sistem Xətası: {str(e)}")
